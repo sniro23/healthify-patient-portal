@@ -26,17 +26,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
+      async (event, currentSession) => {
+        console.log("Auth state changed:", event, currentSession?.user?.email);
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
         
         if (event === 'SIGNED_IN') {
           localStorage.setItem('isAuthenticated', 'true');
           
           // Check if profile setup is complete after signing in
-          if (session) {
-            checkProfileCompletion(session.user.id);
+          if (currentSession) {
+            await checkProfileCompletion(currentSession.user.id);
           }
         } else if (event === 'SIGNED_OUT') {
           localStorage.removeItem('isAuthenticated');
@@ -46,18 +46,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("Initial session check:", session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
+    const initializeAuth = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      console.log("Initial session check:", initialSession?.user?.email);
       
-      if (session) {
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      
+      if (initialSession) {
         localStorage.setItem('isAuthenticated', 'true');
-        checkProfileCompletion(session.user.id);
+        await checkProfileCompletion(initialSession.user.id);
       }
       
       setIsLoading(false);
-    });
+    };
+    
+    initializeAuth();
 
     return () => subscription.unsubscribe();
   }, []);
@@ -192,6 +196,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await supabase.auth.signOut();
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('hasCompletedProfile');
+      setUser(null);
+      setSession(null);
       navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);

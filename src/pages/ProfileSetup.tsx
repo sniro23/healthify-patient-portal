@@ -18,9 +18,25 @@ const ProfileSetup = () => {
     
     // Check if user is authenticated
     const checkAuth = async () => {
+      // If we have user in the context, use that
+      if (user && session) {
+        console.log("User is already authenticated in context", user.id);
+        
+        // If user has already completed profile, redirect to dashboard
+        const hasCompletedProfile = localStorage.getItem("hasCompletedProfile") === "true";
+        if (hasCompletedProfile) {
+          navigate("/dashboard");
+          return;
+        }
+        
+        setPageLoading(false);
+        return;
+      }
+      
+      // Double-check with localStorage and Supabase
       const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
       
-      if (!isAuthenticated && !user) {
+      if (!isAuthenticated) {
         // Double-check with Supabase directly if the user session exists
         const { data } = await supabase.auth.getSession();
         
@@ -39,13 +55,13 @@ const ProfileSetup = () => {
           localStorage.setItem("isAuthenticated", "true");
           localStorage.setItem("hasCompletedProfile", "false");
         }
-      }
-      
-      // If user has already completed profile, redirect to dashboard
-      const hasCompletedProfile = localStorage.getItem("hasCompletedProfile") === "true";
-      if (user && hasCompletedProfile) {
-        navigate("/dashboard");
-        return;
+      } else {
+        // User is authenticated according to localStorage but might not have completed profile
+        const hasCompletedProfile = localStorage.getItem("hasCompletedProfile") === "true";
+        if (hasCompletedProfile) {
+          navigate("/dashboard");
+          return;
+        }
       }
       
       setPageLoading(false);
