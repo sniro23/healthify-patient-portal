@@ -5,21 +5,40 @@ import PageContainer from "@/components/layout/PageContainer";
 import ProfileSetupForm from "@/components/profile/ProfileSetupForm";
 import { useAuth } from "@/lib/hooks/useAuth";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const ProfileSetup = () => {
-  const { user, isLoading } = useAuth();
+  const { user, session, isLoading } = useAuth();
   const navigate = useNavigate();
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
+    console.log("ProfileSetup: Auth state", { user, session, isLoading });
+    
     // Check if user is authenticated
     const checkAuth = async () => {
       const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
       
-      // If not authenticated and no user, redirect to login
       if (!isAuthenticated && !user) {
-        navigate("/login");
-        return;
+        // Double-check with Supabase directly if the user session exists
+        const { data } = await supabase.auth.getSession();
+        
+        if (!data.session) {
+          console.log("No active session found, redirecting to login");
+          toast({
+            title: "Authentication required",
+            description: "Please log in to complete your profile setup",
+            variant: "destructive",
+          });
+          navigate("/login");
+          return;
+        } else {
+          // We found a session but our state doesn't have it, update localStorage
+          console.log("Session found but state not updated, fixing...");
+          localStorage.setItem("isAuthenticated", "true");
+          localStorage.setItem("hasCompletedProfile", "false");
+        }
       }
       
       // If user has already completed profile, redirect to dashboard
@@ -35,7 +54,7 @@ const ProfileSetup = () => {
     if (!isLoading) {
       checkAuth();
     }
-  }, [isLoading, user, navigate]);
+  }, [isLoading, user, session, navigate]);
 
   if (isLoading || pageLoading) {
     return (

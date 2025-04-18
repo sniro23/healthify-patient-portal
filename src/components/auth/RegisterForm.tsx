@@ -34,7 +34,15 @@ const RegisterForm = () => {
           title: "Account created",
           description: "Please set up your profile to continue",
         });
-        navigate("/profile-setup");
+        
+        // Ensure localStorage values are correctly set before redirecting
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("hasCompletedProfile", "false");
+        
+        // Short delay to ensure auth state is fully processed
+        setTimeout(() => {
+          navigate("/profile-setup");
+        }, 100);
       }
     } catch (error) {
       console.error("Registration error:", error);

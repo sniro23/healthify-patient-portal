@@ -27,24 +27,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
         if (event === 'SIGNED_IN') {
+          localStorage.setItem('isAuthenticated', 'true');
+          
           // Check if profile setup is complete after signing in
           if (session) {
             checkProfileCompletion(session.user.id);
           }
+        } else if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('hasCompletedProfile');
         }
       }
     );
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session check:", session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session) {
+        localStorage.setItem('isAuthenticated', 'true');
         checkProfileCompletion(session.user.id);
       }
       
@@ -60,14 +68,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .from('profiles')
         .select('has_completed_profile')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching profile:', error);
         return;
       }
 
-      localStorage.setItem('hasCompletedProfile', data.has_completed_profile.toString());
+      const hasCompletedProfile = data?.has_completed_profile || false;
+      console.log("Profile completion check:", hasCompletedProfile);
+      localStorage.setItem('hasCompletedProfile', hasCompletedProfile.toString());
     } catch (error) {
       console.error('Profile check error:', error);
     }
@@ -102,7 +112,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .from('profiles')
           .select('has_completed_profile')
           .eq('id', data.session.user.id)
-          .single();
+          .maybeSingle();
 
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('hasCompletedProfile', (profileData?.has_completed_profile || false).toString());
@@ -129,6 +139,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(true);
     
     try {
+      console.log("Signing up user:", email);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -144,8 +155,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (data.user) {
+        console.log("User created successfully:", data.user.id);
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('hasCompletedProfile', 'false');
+        
+        // Also set the session and user state immediately
+        setSession(data.session);
+        setUser(data.user);
         
         toast({
           title: 'Registration successful',
