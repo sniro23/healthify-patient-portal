@@ -42,7 +42,7 @@ const RegisterForm = () => {
         // Short delay to ensure auth state is fully processed
         setTimeout(() => {
           navigate("/profile-setup");
-        }, 300);
+        }, 500);
       }
     } catch (error) {
       console.error("Registration error:", error);

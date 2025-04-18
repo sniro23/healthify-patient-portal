@@ -18,6 +18,11 @@ const ProfileSetup = () => {
     
     // Check if user is authenticated
     const checkAuth = async () => {
+      // If auth state is still loading, wait
+      if (isLoading) {
+        return;
+      }
+      
       // If we have user in the context, use that
       if (user && session) {
         console.log("User is already authenticated in context", user.id);
@@ -67,9 +72,7 @@ const ProfileSetup = () => {
       setPageLoading(false);
     };
     
-    if (!isLoading) {
-      checkAuth();
-    }
+    checkAuth();
   }, [isLoading, user, session, navigate]);
 
   if (isLoading || pageLoading) {

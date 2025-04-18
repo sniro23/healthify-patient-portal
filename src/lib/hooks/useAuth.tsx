@@ -82,6 +82,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const hasCompletedProfile = data?.has_completed_profile || false;
       console.log("Profile completion check:", hasCompletedProfile);
       localStorage.setItem('hasCompletedProfile', hasCompletedProfile.toString());
+      
+      // Double check if the user has permission to access their data
+      const { error: testError } = await supabase
+        .from('health_personal_info')
+        .select('id')
+        .limit(1);
+      
+      if (testError) {
+        console.error('Permission test failed:', testError);
+      } else {
+        console.log('User has proper permissions to access data');
+      }
+      
     } catch (error) {
       console.error('Profile check error:', error);
     }
@@ -112,6 +125,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Check profile completion and redirect accordingly
       if (data.session) {
+        // Important: Set the session and user explicitly
+        setSession(data.session);
+        setUser(data.user);
+        
         const { data: profileData } = await supabase
           .from('profiles')
           .select('has_completed_profile')
@@ -166,6 +183,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Also set the session and user state immediately
         setSession(data.session);
         setUser(data.user);
+        
+        // Verify that a profile record exists
+        const { data: profileCheck } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+          
+        if (!profileCheck) {
+          console.log('Creating profile record manually');
+          // Insert a profile record if the trigger failed
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              email: data.user.email,
+              has_completed_profile: false
+            });
+            
+          if (profileError) {
+            console.error('Error creating profile:', profileError);
+          }
+        }
         
         toast({
           title: 'Registration successful',

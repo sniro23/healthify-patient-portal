@@ -83,7 +83,6 @@ const ProfileSetupForm = () => {
     const weight = parseFloat(vitals.weight);
     
     if (height && weight && height > 0) {
-      // Height in cm, convert to m
       const heightInM = height / 100;
       return (weight / (heightInM * heightInM)).toFixed(1);
     }
@@ -113,12 +112,12 @@ const ProfileSetupForm = () => {
     setIsLoading(true);
     
     try {
-      // Parse the fullName into first_name and last_name
       const nameParts = personalInfo.fullName.split(" ");
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
 
-      // Save profile data to Supabase
+      console.log("Saving profile for user:", user.id);
+      
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -136,10 +135,61 @@ const ProfileSetupForm = () => {
         .eq('id', user.id);
 
       if (error) {
+        console.error("Profile update error:", error);
         throw error;
       }
+      
+      const { error: personalInfoError } = await supabase
+        .from('health_personal_info')
+        .insert({
+          user_id: user.id,
+          full_name: personalInfo.fullName,
+          gender: personalInfo.gender,
+          marital_status: personalInfo.maritalStatus,
+          children: parseInt(personalInfo.children) || 0,
+          address: personalInfo.address,
+          age: calculateAge(personalInfo.dateOfBirth)
+        })
+        .select();
+        
+      if (personalInfoError) {
+        console.error("Personal info save error:", personalInfoError);
+      }
+      
+      if (vitals.height || vitals.weight) {
+        const bmi = calculateBMI();
+        const { error: vitalsError } = await supabase
+          .from('health_vitals')
+          .insert({
+            user_id: user.id,
+            height: parseFloat(vitals.height) || null,
+            weight: parseFloat(vitals.weight) || null,
+            bmi: bmi !== "N/A" ? parseFloat(bmi) : null,
+            blood_group: vitals.bloodGroup || ""
+          })
+          .select();
+          
+        if (vitalsError) {
+          console.error("Vitals save error:", vitalsError);
+        }
+      }
+      
+      if (lifestyle.activityLevel || lifestyle.smokingStatus || lifestyle.alcoholConsumption) {
+        const { error: lifestyleError } = await supabase
+          .from('health_lifestyle')
+          .insert({
+            user_id: user.id,
+            activity_level: lifestyle.activityLevel || "Moderate",
+            smoking_status: lifestyle.smokingStatus || "Never",
+            alcohol_consumption: lifestyle.alcoholConsumption || "Occasionally"
+          })
+          .select();
+          
+        if (lifestyleError) {
+          console.error("Lifestyle save error:", lifestyleError);
+        }
+      }
 
-      // Create medication if provided
       if (medications.drugName && medications.dosage && medications.frequency) {
         const { error: medError } = await supabase
           .from('medications')
@@ -157,7 +207,6 @@ const ProfileSetupForm = () => {
         }
       }
       
-      // Store profile completion status in localStorage
       localStorage.setItem("hasCompletedProfile", "true");
       
       toast({
@@ -176,6 +225,21 @@ const ProfileSetupForm = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const calculateAge = (dateOfBirth: string): number => {
+    if (!dateOfBirth) return 0;
+    
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
   };
 
   const renderStep = () => {
